@@ -38,7 +38,7 @@ skssh/
 ├── skssh.el              ← 主入口，autoload 定义，用户命令
 ├── skssh-core.el         ← 核心逻辑（连接管理、配置读写）
 ├── skssh-ui.el           ← UI 层（tabulated-list, transient 菜单等）
-├── skssh-config.el       ← 配置文件解析（~/.ssh/config 兼容）
+├── skssh-config.el       ← 独立配置文件读写 + ~/.ssh/config 单向导入
 ├── skssh-test.el         ← ERT 单元测试
 ├── skssh-pkg.el          ← MELPA 包描述
 └── README.org            ← 文档（MELPA 规范，org 格式）
@@ -51,8 +51,9 @@ skssh/
 ## 关键约定（项目特有）
 
 - 所有公开命令以 `skssh-` 为前缀，内部函数以 `skssh--` 为前缀
-- 配置存储在 `~/.emacs.d/skssh/` 或遵循 `user-emacs-directory`
-- 兼容 Emacs 27.1+，不使用 28+ 独有 API 除非有兼容层
+- 配置存储在 `(expand-file-name "skssh/hosts.el" user-emacs-directory)`，格式为 Emacs Lisp plist 列表
+- 提供 `skssh-import-from-ssh-config` 命令，可从 `~/.ssh/config` 单次导入，导入后两边独立
+- 要求 Emacs 30.0+，可自由使用 30.0 及以下版本引入的所有 API
 - 依赖尽量精简：优先使用 Emacs 内置库（`comint`、`term`、`tramp`）
 - 连接底层优先使用 TRAMP，避免重造轮子
 
@@ -64,7 +65,7 @@ skssh/
 |------|------|-----------|------|
 | SSH 连接后端 | TRAMP | 自定义 process | TRAMP 已内置、功能完整 |
 | UI 框架 | tabulated-list-mode | magit-section | 更轻量，内置 |
-| 配置格式 | ~/.ssh/config 兼容 | 独立 JSON/YAML | 复用现有配置，零迁移成本 |
+| 配置格式 | 独立配置文件（存于 `user-emacs-directory`） | 直接读写 ~/.ssh/config | 不污染系统 SSH 配置，skssh 完全掌控自己的数据 |
 
 ---
 
@@ -73,6 +74,7 @@ skssh/
 - 不直接 shell-command 调用 ssh，统一走 TRAMP 或 process-based API
 - 不在 global-map 上绑定快捷键，只在 skssh-mode-map 内绑定
 - 不引入需要编译的外部 C 扩展
+- **不修改 `~/.ssh/config`**：该文件只读（用于导入），所有写操作只针对 skssh 独立配置文件
 
 ---
 

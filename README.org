@@ -103,4 +103,4 @@ Hosts are stored in =~/.emacs.d/skssh/hosts.el= as an Emacs Lisp plist list.
 
 * License
 
-GPL-3.0
+MIT License

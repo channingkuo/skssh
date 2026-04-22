@@ -1,0 +1,106 @@
+#+TITLE: skssh — SSH Connection Manager for Emacs
+#+AUTHOR: ChanningKuo
+
+* Overview
+
+skssh lets you manage SSH connections from Emacs: browse hosts, connect
+via TRAMP, and transfer files with a dual-pane SFTP interface.
+
+Requires Emacs 30.0+.
+
+* Installation
+
+** MELPA (coming soon)
+
+#+begin_src emacs-lisp
+(use-package skssh)
+#+end_src
+
+** Manual
+
+Clone the repository and add to your load-path:
+
+#+begin_src emacs-lisp
+(add-to-list 'load-path "/path/to/skssh")
+(require 'skssh)
+#+end_src
+
+* Usage
+
+| Command              | Description                        |
+|----------------------+------------------------------------|
+| ~M-x skssh~          | Open host list                     |
+| ~M-x skssh-add-host~ | Add a new SSH host                 |
+| ~M-x skssh-import~   | Import hosts from ~/.ssh/config    |
+| ~M-x skssh-sftp~     | Open dual-pane SFTP for a host     |
+
+** Host List Keys
+
+| Key | Action                    |
+|-----+---------------------------|
+| ~RET~ / ~?~ | Open action menu  |
+| ~s~   | Connect: Shell            |
+| ~d~   | Connect: Dired            |
+| ~f~   | Open SFTP dual-pane       |
+| ~e~   | Edit host                 |
+| ~D~   | Delete host               |
+| ~a~   | Add host                  |
+| ~i~   | Import from ~/.ssh/config |
+| ~G~   | Filter by group           |
+| ~q~   | Quit                      |
+
+** SFTP Dual-Pane Keys
+
+| Key   | Action                             |
+|-------+------------------------------------|
+| ~C~   | Copy marked files to opposite pane |
+| ~R~   | Move marked files to opposite pane |
+| ~TAB~ | Switch pane                        |
+| ~g~   | Refresh both panes                 |
+| ~q~   | Quit SFTP, return to host list     |
+
+** Drag-and-Drop File Transfer
+
+In terminal Emacs, drag a file from your desktop onto the terminal.
+The terminal pastes the file path. skssh detects the path and uploads
+or downloads based on which pane has focus.
+
+1. Focus the target pane (~TAB~ to switch)
+2. Drag file from desktop → terminal
+3. Transfer begins automatically
+
+Supports Unix/macOS paths (=/path/to/file=, =~/file=) and Windows
+paths (=C:\file=, =C:/file=).
+
+* Password Authentication
+
+skssh does not store passwords. When no ~:identity~ key is set,
+TRAMP uses ~auth-source~ to look up credentials:
+
+1. =~/.authinfo.gpg= (recommended — GPG encrypted)
+2. =~/.authinfo= (plain text)
+3. Minibuffer prompt (interactive fallback)
+
+* Configuration
+
+Hosts are stored in =~/.emacs.d/skssh/hosts.el= as an Emacs Lisp plist list.
+
+#+begin_src emacs-lisp
+((:id "abc-123"
+  :label "Production"
+  :host "192.168.1.10"
+  :user "deploy"
+  :port 22
+  :identity "~/.ssh/id_ed25519"
+  :groups ("prod")
+  :notes ""))
+#+end_src
+
+* v0.2 Roadmap
+
+- ProxyJump (multi-hop connections)
+- SSH key management / ssh-agent status
+
+* License
+
+GPL-3.0

@@ -23,6 +23,7 @@
     (define-key map (kbd "a")   #'skssh-add-host)
     (define-key map (kbd "i")   #'skssh-import-from-ssh-config)
     (define-key map (kbd "G")   #'skssh-ui-filter-by-group)
+    (define-key map (kbd "/")   #'skssh-ui-filter)
     (define-key map (kbd "q")   #'quit-window)
     map)
   "Keymap for `skssh-list-mode'.")
@@ -43,9 +44,25 @@
 (defvar skssh-ui--group-filter nil
   "Current group filter string, or nil for no filter.")
 
+(defvar skssh-ui--string-filter nil
+  "Current substring filter against label/host/groups, or nil for no filter.")
+
 (defun skssh-ui--host-status (host)
   "Return status indicator string for HOST plist."
   (if (skssh--session-active-p (plist-get host :id)) "●" "○"))
+
+(defun skssh-ui--host-matches-string-p (host needle)
+  "Return non-nil if HOST plist contains NEEDLE (case-insensitive).
+Searches :label, :host, and any entry in :groups."
+  (let ((case-fold-search t)
+        (n (downcase needle)))
+    (or (string-match-p (regexp-quote n)
+                        (downcase (or (plist-get host :label) "")))
+        (string-match-p (regexp-quote n)
+                        (downcase (or (plist-get host :host)  "")))
+        (cl-some (lambda (g)
+                   (string-match-p (regexp-quote n) (downcase g)))
+                 (or (plist-get host :groups) nil)))))
 
 (defun skssh-ui--host-to-row (host)
   "Convert HOST plist to tabulated-list row entry."
@@ -61,14 +78,35 @@
 (defun skssh-ui--refresh ()
   "Reload hosts and repopulate the list buffer."
   (let* ((hosts (skssh--load-hosts))
-         (filtered (if skssh-ui--group-filter
+         (after-group (if skssh-ui--group-filter
+                          (cl-remove-if-not
+                           (lambda (h)
+                             (member skssh-ui--group-filter
+                                     (plist-get h :groups)))
+                           hosts)
+                        hosts))
+         (filtered (if skssh-ui--string-filter
                        (cl-remove-if-not
                         (lambda (h)
-                          (member skssh-ui--group-filter (plist-get h :groups)))
-                        hosts)
-                     hosts)))
+                          (skssh-ui--host-matches-string-p
+                           h skssh-ui--string-filter))
+                        after-group)
+                     after-group)))
     (setq tabulated-list-entries (mapcar #'skssh-ui--host-to-row filtered))
-    (tabulated-list-print t)))
+    (tabulated-list-print t)
+    (skssh-ui--update-header-line)))
+
+(defun skssh-ui--update-header-line ()
+  "Show active filters in the header line, or clear it."
+  (let ((parts (delq nil
+                     (list (when skssh-ui--group-filter
+                             (format "group=%s" skssh-ui--group-filter))
+                           (when skssh-ui--string-filter
+                             (format "match=\"%s\"" skssh-ui--string-filter))))))
+    (setq header-line-format
+          (when parts
+            (concat "skssh filter: " (mapconcat #'identity parts " | ")
+                   "   (press / to change, G for group, / with empty input to clear)")))))
 
 (defun skssh-ui--current-host ()
   "Return host plist for the row at point, or signal error."
@@ -88,6 +126,24 @@
                                   all-groups nil nil)))
     (setq skssh-ui--group-filter (if (string-empty-p choice) nil choice))
     (skssh-ui--refresh)))
+
+(defun skssh-ui-filter (needle)
+  "Filter host list by substring NEEDLE (matched against label/host/groups).
+Empty input clears the filter."
+  (interactive
+   (list (read-string
+          (format "Filter (label/host/group%s, empty = clear): "
+                  (if skssh-ui--string-filter
+                      (format ", current=\"%s\"" skssh-ui--string-filter)
+                    "")))))
+  (setq skssh-ui--string-filter
+        (if (or (null needle) (string-empty-p needle)) nil needle))
+  (skssh-ui--refresh)
+  (if skssh-ui--string-filter
+      (message "skssh: filter = \"%s\" (%d match)"
+               skssh-ui--string-filter
+               (length tabulated-list-entries))
+    (message "skssh: filter cleared")))
 
 (defun skssh-ui-connect-shell ()
   "Open shell for host at point."
@@ -159,15 +215,18 @@
                  (plist-get host :label)
                  (plist-get host :host))
        "skssh"))
-   ["连接"
+   ["Connect"
     ("s" "Shell"      skssh-ui-connect-shell)
     ("d" "Dired"      skssh-ui-connect-dired)
-    ("f" "SFTP 双屏"  skssh-ui-open-sftp)]
-   ["编辑"
-    ("e" "编辑主机"   skssh-ui-edit-host)
-    ("D" "删除主机"   skssh-ui-delete-host)]
-   ["导航"
-    ("q" "退出"       quit-window)]])
+    ("f" "SFTP"  skssh-ui-open-sftp)]
+   ["Edit"
+    ("e" "Edit Host"   skssh-ui-edit-host)
+    ("D" "Delete Host" skssh-ui-delete-host)]
+   ["Filter"
+    ("/" "Search label/host/group" skssh-ui-filter)
+    ("G" "Filter by group"         skssh-ui-filter-by-group)]
+   ["Navigate"
+    ("q" "Quit"       quit-window)]])
 
 (provide 'skssh-ui)
 ;;; skssh-ui.el ends here

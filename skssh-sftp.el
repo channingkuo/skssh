@@ -87,6 +87,7 @@ Left pane = local home dir, right pane = remote home dir."
                        (dired-noselect (skssh--tramp-path host))))
          (lwin (selected-window))
          (rwin (split-window-right)))
+    (skssh--session-register (plist-get host :id) remote-buf)
     (set-window-buffer lwin local-buf)
     (with-current-buffer local-buf
       (skssh-sftp-mode 1)

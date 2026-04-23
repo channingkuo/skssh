@@ -28,6 +28,15 @@
     map)
   "Keymap for `skssh-list-mode'.")
 
+(defvar skssh-ui--group-filter nil
+  "Current group filter string, or nil for no filter.")
+
+(defvar skssh-ui--string-filter nil
+  "Current substring filter against label/host/groups, or nil for no filter.")
+
+(defvar-local skssh-ui--filter-indicator nil
+  "Mode-line fragment describing active filters, or nil when no filter.")
+
 (define-derived-mode skssh-list-mode tabulated-list-mode "skssh"
   "Major mode for browsing SSH hosts managed by skssh."
   (setq tabulated-list-format
@@ -39,13 +48,12 @@
          ("Status"   6 nil)])
   (setq tabulated-list-sort-key '("Label" . nil))
   (tabulated-list-init-header)
+  (unless (member '(skssh-ui--filter-indicator skssh-ui--filter-indicator)
+                  mode-line-misc-info)
+    (setq-local mode-line-misc-info
+                (cons '(skssh-ui--filter-indicator skssh-ui--filter-indicator)
+                      mode-line-misc-info)))
   (add-hook 'tabulated-list-revert-hook #'skssh-ui--refresh nil t))
-
-(defvar skssh-ui--group-filter nil
-  "Current group filter string, or nil for no filter.")
-
-(defvar skssh-ui--string-filter nil
-  "Current substring filter against label/host/groups, or nil for no filter.")
 
 (defun skssh-ui--host-status (host)
   "Return status indicator string for HOST plist."
@@ -94,19 +102,21 @@ Searches :label, :host, and any entry in :groups."
                      after-group)))
     (setq tabulated-list-entries (mapcar #'skssh-ui--host-to-row filtered))
     (tabulated-list-print t)
-    (skssh-ui--update-header-line)))
+    (skssh-ui--update-filter-indicator)))
 
-(defun skssh-ui--update-header-line ()
-  "Show active filters in the header line, or clear it."
+(defun skssh-ui--update-filter-indicator ()
+  "Refresh `skssh-ui--filter-indicator' from current filter state.
+Displayed in the mode line so that the tabulated-list column header
+line remains intact."
   (let ((parts (delq nil
                      (list (when skssh-ui--group-filter
                              (format "group=%s" skssh-ui--group-filter))
                            (when skssh-ui--string-filter
                              (format "match=\"%s\"" skssh-ui--string-filter))))))
-    (setq header-line-format
+    (setq skssh-ui--filter-indicator
           (when parts
-            (concat "skssh filter: " (mapconcat #'identity parts " | ")
-                   "   (press / to change, G for group, / with empty input to clear)")))))
+            (concat " [" (mapconcat #'identity parts " | ") "]"))))
+  (force-mode-line-update))
 
 (defun skssh-ui--current-host ()
   "Return host plist for the row at point, or signal error."

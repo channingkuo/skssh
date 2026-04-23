@@ -64,19 +64,114 @@ SRC-PATH or DEST-DIR may be TRAMP paths."
     (define-key map (kbd "TAB") #'skssh-sftp-switch-pane)
     (define-key map (kbd "g")   #'skssh-sftp-refresh)
     (define-key map (kbd "h")   #'skssh-sftp-help)
+    (define-key map (kbd "H")   #'skssh-sftp-toggle-detail-columns)
     (define-key map (kbd "q")   #'skssh-sftp-quit)
     (define-key map [remap dired-find-file]    #'skssh-sftp-find-file)
     (define-key map [remap dired-up-directory] #'skssh-sftp-up-directory)
     map)
   "Keymap for `skssh-sftp-mode'.")
 
+(defcustom skssh-sftp-hide-detail-columns t
+  "If non-nil, hide links/user/group columns in SFTP dired panes.
+This controls the default state when a pane is first opened.
+Toggle interactively with \\[skssh-sftp-toggle-detail-columns]."
+  :type 'boolean
+  :group 'skssh)
+
+(defvar-local skssh-sftp--columns-hidden nil
+  "Buffer-local flag: non-nil when detail columns are currently hidden.")
+
 (define-minor-mode skssh-sftp-mode
   "Minor mode active in skssh SFTP dual-pane dired buffers."
   :lighter " skssh-sftp"
   :keymap skssh-sftp-mode-map
   (if skssh-sftp-mode
-      (add-hook 'after-change-functions #'skssh-sftp--detect-dropped-path nil t)
-    (remove-hook 'after-change-functions #'skssh-sftp--detect-dropped-path t)))
+      (progn
+        (add-hook 'after-change-functions  #'skssh-sftp--detect-dropped-path nil t)
+        (add-hook 'dired-after-readin-hook #'skssh-sftp--apply-column-visibility nil t)
+        ;; Only seed the default when we haven't been here before.
+        ;; `skssh-sftp--visit-dir' pre-sets this to preserve the user's
+        ;; toggle across directory navigation.
+        (unless (local-variable-p 'skssh-sftp--columns-hidden)
+          (setq skssh-sftp--columns-hidden skssh-sftp-hide-detail-columns))
+        (skssh-sftp--apply-column-visibility))
+    (remove-hook 'after-change-functions  #'skssh-sftp--detect-dropped-path t)
+    (remove-hook 'dired-after-readin-hook #'skssh-sftp--apply-column-visibility t)
+    (remove-overlays (point-min) (point-max) 'skssh-sftp-hidden t)))
+
+;;; Column hiding (hide links/user/group in dired listing)
+
+(defconst skssh-sftp--detail-columns-regexp
+  (rx bol
+      (* (any " \t"))
+      ;; File type + 9 permission bits — always 10 chars, stays visible.
+      (any "-dlcbspDLP")
+      (= 9 (any "-rwxstSTl"))
+      ;; Group 1 = everything from (optional) ACL/xattr marker through
+      ;; the whitespace that precedes the size column.  Hiding this
+      ;; whole span keeps the visible prefix of every row at a fixed
+      ;; width of exactly 10 chars, which is what makes the remaining
+      ;; columns line up once we pad the size column back via `display'.
+      (group
+       (? (any "@+."))
+       (+ (any " \t"))
+       (+ digit)             (+ (any " \t"))
+       (+ (not (any " \t"))) (+ (any " \t"))
+       (+ (not (any " \t"))) (+ (any " \t")))
+      ;; Group 2 = the size token (e.g. "1568" or "1.5K").
+      (group (+ (not (any " \t")))))
+  "Regexp matching a dired -l line.
+Group 1 covers marker/links/user/group plus the separating
+whitespace; it is replaced by a computed `display' string so that
+the size column becomes right-aligned.  Group 2 is the size token,
+used only to measure its width.")
+
+(defun skssh-sftp--hide-detail-columns ()
+  "Hide links/user/group columns in the current dired buffer.
+Sizes are realigned so the size column is right-aligned, which
+keeps the date and filename columns lined up across rows.  The
+underlying buffer text is preserved, so dired operations keep
+working unchanged."
+  (remove-overlays (point-min) (point-max) 'skssh-sftp-hidden t)
+  (let ((rows nil)
+        (max-size 0))
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+        (beginning-of-line)
+        (when (looking-at skssh-sftp--detail-columns-regexp)
+          (let ((size-w (- (match-end 2) (match-beginning 2))))
+            (setq max-size (max max-size size-w))
+            (push (list (match-beginning 1) (match-end 1) size-w) rows)))
+        (forward-line 1)))
+    (dolist (row rows)
+      (let* ((beg (nth 0 row))
+             (end (nth 1 row))
+             (sw  (nth 2 row))
+             ;; One separator space + padding to right-align the size.
+             (pad (make-string (1+ (- max-size sw)) ?\s))
+             (ov  (make-overlay beg end)))
+        (overlay-put ov 'display pad)
+        (overlay-put ov 'evaporate t)
+        (overlay-put ov 'skssh-sftp-hidden t)))))
+
+(defun skssh-sftp--apply-column-visibility ()
+  "Apply or clear column hiding per `skssh-sftp--columns-hidden'."
+  (if skssh-sftp--columns-hidden
+      (skssh-sftp--hide-detail-columns)
+    (remove-overlays (point-min) (point-max) 'skssh-sftp-hidden t)))
+
+(defun skssh-sftp-toggle-detail-columns ()
+  "Toggle visibility of links/user/group columns in both SFTP panes."
+  (interactive)
+  (let ((new-state (not skssh-sftp--columns-hidden)))
+    (dolist (win (list skssh-sftp--local-window skssh-sftp--remote-window))
+      (when (window-live-p win)
+        (with-current-buffer (window-buffer win)
+          (setq skssh-sftp--columns-hidden new-state)
+          (skssh-sftp--apply-column-visibility))))
+    (message "skssh-sftp: detail columns %s"
+             (if new-state "hidden" "shown"))))
 
 (defun skssh-sftp-open (host)
   "Open SFTP dual-pane for HOST plist.
@@ -138,9 +233,14 @@ DIR may be a local path or a TRAMP path."
   (let ((host     skssh-sftp--host)
         (lwin     skssh-sftp--local-window)
         (rwin     skssh-sftp--remote-window)
+        (hidden   skssh-sftp--columns-hidden)
         (is-local (eq (selected-window) skssh-sftp--local-window)))
     (set-buffer-modified-p nil)
     (find-alternate-file dir)
+    ;; Seed the buffer-local toggle state BEFORE enabling the mode so
+    ;; `skssh-sftp-mode' activation picks up the user's current choice
+    ;; instead of reverting to `skssh-sftp-hide-detail-columns'.
+    (setq-local skssh-sftp--columns-hidden hidden)
     (skssh-sftp-mode 1)
     (setq skssh-sftp--local-window  lwin
           skssh-sftp--remote-window rwin
@@ -230,6 +330,9 @@ BEG and END delimit the changed region."
     ("RET" "Enter directory"   skssh-sftp-find-file)
     ("^"   "Up one directory"  skssh-sftp-up-directory)
     ("g"   "Refresh panes"     skssh-sftp-refresh)]
+   ["View"
+    ("H" "Toggle links/user/group columns"
+     skssh-sftp-toggle-detail-columns)]
    ["Session"
     ("h" "Show this help" skssh-sftp-help)
     ("q" "Quit SFTP"      skssh-sftp-quit)]])

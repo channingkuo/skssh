@@ -3,3 +3,5 @@
 *.elc
 *-autoloads.el
 .DS_Store
+.claude
+CLAUDE.md

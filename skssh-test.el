@@ -114,15 +114,18 @@
 ;;; Core tests
 
 (ert-deftest skssh-test-tramp-path-default-port ()
-  "Standard port 22 omitted from TRAMP path."
+  "Standard port 22 omitted from TRAMP path.
+Default remote path is \"~/\" so the session lands in $HOME
+(see `skssh--tramp-path')."
   (let ((host '(:user "deploy" :host "1.2.3.4" :port 22)))
-    (should (equal "/ssh:deploy@1.2.3.4:/"
+    (should (equal "/ssh:deploy@1.2.3.4:~/"
                    (skssh--tramp-path host)))))
 
 (ert-deftest skssh-test-tramp-path-custom-port ()
-  "Non-standard port included as #PORT in TRAMP path."
+  "Non-standard port included as #PORT in TRAMP path.
+Default remote path is \"~/\" so the session lands in $HOME."
   (let ((host '(:user "kuo" :host "dev.example.com" :port 2222)))
-    (should (equal "/ssh:kuo@dev.example.com#2222:/"
+    (should (equal "/ssh:kuo@dev.example.com#2222:~/"
                    (skssh--tramp-path host)))))
 
 (ert-deftest skssh-test-tramp-path-with-remote-path ()

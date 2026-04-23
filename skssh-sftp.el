@@ -68,6 +68,14 @@ SRC-PATH or DEST-DIR may be TRAMP paths."
     (define-key map (kbd "q")   #'skssh-sftp-quit)
     (define-key map [remap dired-find-file]    #'skssh-sftp-find-file)
     (define-key map [remap dired-up-directory] #'skssh-sftp-up-directory)
+    ;; Drag-drop / paste interception.  Dired buffers are read-only, so
+    ;; we can't rely on `after-change-functions' firing when the terminal
+    ;; pastes a dropped path -- the insertion itself is rejected first
+    ;; with "Buffer is read-only".  Instead we catch the paste events
+    ;; and dispatch the transfer without touching buffer contents.
+    (define-key map [xterm-paste]           #'skssh-sftp-handle-xterm-paste)
+    (define-key map [remap yank]            #'skssh-sftp-yank)
+    (define-key map [remap yank-from-kill-ring] #'skssh-sftp-yank)
     map)
   "Keymap for `skssh-sftp-mode'.")
 
@@ -87,7 +95,6 @@ Toggle interactively with \\[skssh-sftp-toggle-detail-columns]."
   :keymap skssh-sftp-mode-map
   (if skssh-sftp-mode
       (progn
-        (add-hook 'after-change-functions  #'skssh-sftp--detect-dropped-path nil t)
         (add-hook 'dired-after-readin-hook #'skssh-sftp--apply-column-visibility nil t)
         ;; Only seed the default when we haven't been here before.
         ;; `skssh-sftp--visit-dir' pre-sets this to preserve the user's
@@ -95,7 +102,6 @@ Toggle interactively with \\[skssh-sftp-toggle-detail-columns]."
         (unless (local-variable-p 'skssh-sftp--columns-hidden)
           (setq skssh-sftp--columns-hidden skssh-sftp-hide-detail-columns))
         (skssh-sftp--apply-column-visibility))
-    (remove-hook 'after-change-functions  #'skssh-sftp--detect-dropped-path t)
     (remove-hook 'dired-after-readin-hook #'skssh-sftp--apply-column-visibility t)
     (remove-overlays (point-min) (point-max) 'skssh-sftp-hidden t)))
 
@@ -289,29 +295,67 @@ active.  Regular files are opened as in ordinary dired."
       (switch-to-buffer "*skssh*"))))
 
 ;;; Drag-drop path detection
+;;
+;; Dired buffers are read-only, so trying to insert a dropped path into
+;; one fails with "Buffer is read-only" before any `after-change-functions'
+;; hook gets a chance to run.  We therefore intercept the paste events
+;; themselves -- `xterm-paste' (terminal bracketed paste, which is how
+;; most terminal emulators deliver drag-drop) and `yank' -- and dispatch
+;; the transfer directly, without touching buffer contents.
 
-(defun skssh-sftp--detect-dropped-path (beg end _len)
-  "Detect file paths inserted into the dired buffer (terminal drag-drop).
-BEG and END delimit the changed region."
-  (let ((inserted (string-trim
-                   (buffer-substring-no-properties beg end))))
-    (when (skssh-sftp--path-p inserted)
-      (let ((path (expand-file-name inserted))
-            (dir  (skssh-sftp--transfer-direction
-                   skssh-sftp--local-window
-                   skssh-sftp--remote-window)))
-        (let ((inhibit-modification-hooks t))
-          (delete-region beg end))
-        (when dir
-          (let ((dest (if (eq dir 'upload)
-                          (with-current-buffer
-                              (window-buffer skssh-sftp--remote-window)
-                            (dired-current-directory))
-                        (with-current-buffer
-                            (window-buffer skssh-sftp--local-window)
-                          (dired-current-directory)))))
-            (skssh-sftp--transfer path dest)
-            (skssh-sftp-refresh)))))))
+(defun skssh-sftp--dest-dir-for-direction (dir)
+  "Return the destination directory for transfer DIR (\\='upload or \\='download)."
+  (cond
+   ((eq dir 'upload)
+    (with-current-buffer (window-buffer skssh-sftp--remote-window)
+      (dired-current-directory)))
+   ((eq dir 'download)
+    (with-current-buffer (window-buffer skssh-sftp--local-window)
+      (dired-current-directory)))))
+
+(defun skssh-sftp--dispatch-dropped-path (path)
+  "Transfer PATH to the directory shown in the opposite pane.
+The selected window decides the direction: dropping into the remote
+pane uploads, dropping into the local pane downloads."
+  (let ((dir (skssh-sftp--transfer-direction
+              skssh-sftp--local-window
+              skssh-sftp--remote-window)))
+    (if (not dir)
+        (message "skssh-sftp: not inside an SFTP pane, ignoring drop")
+      (let ((dest (skssh-sftp--dest-dir-for-direction dir)))
+        (skssh-sftp--transfer (expand-file-name path) dest)
+        (skssh-sftp-refresh)))))
+
+(defun skssh-sftp--maybe-transfer-paste (text)
+  "Treat TEXT as a possible dropped file path and transfer if valid.
+Strips surrounding whitespace/newlines first (terminals often append a
+trailing newline to bracketed-paste payloads)."
+  (let ((trimmed (string-trim (or text ""))))
+    (cond
+     ((string-empty-p trimmed)
+      (message "skssh-sftp: empty paste ignored"))
+     ((skssh-sftp--path-p trimmed)
+      (skssh-sftp--dispatch-dropped-path trimmed))
+     (t
+      (message "skssh-sftp: paste is not an existing file path: %s"
+               trimmed)))))
+
+(defun skssh-sftp-handle-xterm-paste (event)
+  "Handle terminal bracketed-paste EVENT inside an SFTP pane.
+Detects dropped file paths and transfers them to the opposite pane,
+avoiding the \"Buffer is read-only\" error you would otherwise get
+trying to paste text into a dired buffer."
+  (interactive "e")
+  (skssh-sftp--maybe-transfer-paste (nth 1 event)))
+
+(defun skssh-sftp-yank ()
+  "Yank replacement for SFTP panes.
+If the top of the kill-ring is an existing file path, transfer it to
+the opposite pane.  Plain `yank' would fail here anyway because dired
+buffers are read-only; this turns the failing keystroke into a useful
+drag-drop-style transfer instead."
+  (interactive)
+  (skssh-sftp--maybe-transfer-paste (current-kill 0 t)))
 
 ;;; Help / key reference
 
@@ -324,7 +368,8 @@ BEG and END delimit the changed region."
                  (plist-get skssh-sftp--host :label))
        "skssh-sftp keys"))
    ["Transfer"
-    ("C" "Copy marked to other pane" skssh-sftp-copy-to-other)]
+    ("C"   "Copy marked to other pane" skssh-sftp-copy-to-other)
+    ("C-y" "Paste/drop path to this pane" skssh-sftp-yank)]
    ["Navigate"
     ("TAB" "Switch pane"       skssh-sftp-switch-pane)
     ("RET" "Enter directory"   skssh-sftp-find-file)

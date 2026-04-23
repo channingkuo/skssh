@@ -195,14 +195,24 @@ Empty input clears the filter."
          (groups-str (read-string "Groups (space-separated): "
                                   (mapconcat #'identity
                                              (plist-get host :groups) " ")))
-         (updated (list :id       (plist-get host :id)
-                        :label    label
-                        :host     hostname
-                        :user     user
-                        :port     port
-                        :identity (if (string-empty-p identity) nil identity)
-                        :groups   (split-string groups-str " " t)
-                        :notes    (or (plist-get host :notes) "")))
+         (shell    (read-string "Shell (blank = default /bin/bash): "
+                                (or (plist-get host :shell) "")))
+         (shell-args-str (read-string
+                          "Shell args (space-separated, blank = default -l -i): "
+                          (mapconcat #'identity
+                                     (or (plist-get host :shell-args) nil) " ")))
+         (updated (list :id         (plist-get host :id)
+                        :label      label
+                        :host       hostname
+                        :user       user
+                        :port       port
+                        :identity   (if (string-empty-p identity) nil identity)
+                        :groups     (split-string groups-str " " t)
+                        :shell      (if (string-empty-p shell) nil shell)
+                        :shell-args (if (string-empty-p shell-args-str)
+                                        nil
+                                      (split-string shell-args-str " " t))
+                        :notes      (or (plist-get host :notes) "")))
          (hosts (skssh--load-hosts))
          (new   (skssh--update-host (plist-get host :id) updated hosts)))
     (skssh--save-hosts new)
@@ -216,14 +226,30 @@ Empty input clears the filter."
 
 ;;; Transient menu
 
+(defun skssh-ui--effective-shell-line (host)
+  "Return a short description of the effective shell for HOST.
+Resolves `:shell' / `:shell-args' on HOST against the global
+`skssh-shell-file-name' and `skssh-shell-args' defaults, and
+marks the string as (default) when nothing on HOST overrides."
+  (let* ((prog     (or (plist-get host :shell)      skssh-shell-file-name))
+         (args     (or (plist-get host :shell-args) skssh-shell-args))
+         (args-str (mapconcat #'identity args " "))
+         (override (or (plist-get host :shell)
+                       (plist-get host :shell-args))))
+    (format "shell: %s%s%s"
+            prog
+            (if (string-empty-p args-str) "" (concat " " args-str))
+            (if override "" " (default)"))))
+
 (transient-define-prefix skssh-ui-open-transient ()
   "Transient menu for skssh host actions."
   [:description
    (lambda ()
      (if-let ((host (ignore-errors (skssh-ui--current-host))))
-         (format "skssh: %s (%s)"
+         (format "skssh: %s (%s)\n%s"
                  (plist-get host :label)
-                 (plist-get host :host))
+                 (plist-get host :host)
+                 (skssh-ui--effective-shell-line host))
        "skssh"))
    ["Connect"
     ("s" "Shell"      skssh-ui-connect-shell)

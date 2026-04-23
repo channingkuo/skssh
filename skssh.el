@@ -33,13 +33,20 @@
          (port     (read-number "Port: " 22))
          (identity (read-string "Identity file (blank = auth-source): "))
          (groups-str (read-string "Groups (space-separated, optional): "))
-         (host (list :label    label
-                     :host     hostname
-                     :user     user
-                     :port     port
-                     :identity (if (string-empty-p identity) nil identity)
-                     :groups   (split-string groups-str " " t)
-                     :notes    ""))
+         (shell    (read-string "Shell (blank = default /bin/bash): "))
+         (shell-args-str (read-string
+                          "Shell args (space-separated, blank = default -l -i): "))
+         (host (list :label      label
+                     :host       hostname
+                     :user       user
+                     :port       port
+                     :identity   (if (string-empty-p identity) nil identity)
+                     :groups     (split-string groups-str " " t)
+                     :shell      (if (string-empty-p shell) nil shell)
+                     :shell-args (if (string-empty-p shell-args-str)
+                                     nil
+                                   (split-string shell-args-str " " t))
+                     :notes      ""))
          (hosts  (skssh--load-hosts))
          (new    (skssh--add-host host hosts)))
     (skssh--save-hosts new)

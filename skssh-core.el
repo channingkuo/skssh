@@ -4,7 +4,32 @@
 ;;; Code:
 
 (require 'tramp)
+(require 'cl-lib)
 (require 'skssh-config)
+
+(defcustom skssh-shell-file-name "/bin/bash"
+  "Remote shell program used by `skssh--connect-shell'.
+Set to the absolute path of an interactive shell on the remote host
+(for example \"/bin/bash\" or \"/bin/zsh\").  This overrides TRAMP's
+default of `/bin/sh', which would otherwise skip the user's
+`.bashrc' / `.zshrc' entirely.
+
+Can be overridden per-host by setting the `:shell' field on the host
+plist."
+  :type 'string
+  :group 'skssh)
+
+(defcustom skssh-shell-args '("-l" "-i")
+  "Arguments passed to `skssh-shell-file-name'.
+The default makes it both a login shell (so `.bash_profile' /
+`.zprofile' / `.profile' are sourced) and an interactive shell (so
+`.bashrc' / `.zshrc' are sourced, which is where most users define
+aliases and functions).
+
+Can be overridden per-host by setting the `:shell-args' field on the
+host plist."
+  :type '(repeat string)
+  :group 'skssh)
 
 (defvar skssh--active-sessions (make-hash-table :test 'equal)
   "Active TRAMP sessions. Key = host :id string, value = buffer.")
@@ -71,19 +96,31 @@ Provides `C-c q' to kill the shell and return to the host list."
     (switch-to-buffer "*skssh*")))
 
 (defun skssh--connect-shell (host)
-  "Open a TRAMP shell buffer for HOST plist. Returns the buffer."
+  "Open a TRAMP shell buffer for HOST plist. Returns the buffer.
+
+Starts the remote shell specified by `:shell' on HOST (falling back
+to `skssh-shell-file-name') as a login + interactive shell so that
+the user's `.bash_profile' / `.bashrc' / `.zprofile' / `.zshrc' are
+all sourced.  Without this, TRAMP's default `/bin/sh' non-interactive
+invocation silently skips those dotfiles."
   (skssh--with-tramp-auth
-    (let* ((tramp-path (skssh--tramp-path host))
+    (let* ((tramp-path  (skssh--tramp-path host))
            (default-directory tramp-path)
-           (buf (shell (format "*skssh-shell:%s*" (plist-get host :label)))))
-      (skssh--session-register (plist-get host :id) buf)
-      (with-current-buffer buf
-        (skssh-shell-mode 1)
-        (add-hook 'kill-buffer-hook
-                  (let ((id (plist-get host :id)))
-                    (lambda () (skssh--session-remove id)))
-                  nil t))
-      buf)))
+           (shell-prog  (or (plist-get host :shell)      skssh-shell-file-name))
+           (shell-args  (or (plist-get host :shell-args) skssh-shell-args))
+           (shell-base  (file-name-nondirectory shell-prog))
+           (args-sym    (intern (format "explicit-%s-args" shell-base)))
+           (explicit-shell-file-name shell-prog))
+      (cl-progv (list args-sym) (list shell-args)
+        (let ((buf (shell (format "*skssh-shell:%s*" (plist-get host :label)))))
+          (skssh--session-register (plist-get host :id) buf)
+          (with-current-buffer buf
+            (skssh-shell-mode 1)
+            (add-hook 'kill-buffer-hook
+                      (let ((id (plist-get host :id)))
+                        (lambda () (skssh--session-remove id)))
+                      nil t))
+          buf)))))
 
 (defvar skssh-dired-mode-map
   (let ((map (make-sparse-keymap)))

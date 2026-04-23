@@ -22,11 +22,12 @@ setting is preserved."
 
 (defun skssh--tramp-path (host &optional remote-path)
   "Build TRAMP /ssh: path string for HOST plist.
-REMOTE-PATH defaults to \"/\"."
+REMOTE-PATH defaults to \"~/\" so that shell, dired, and SFTP land in
+the login user's home directory on the remote host."
   (let ((user  (plist-get host :user))
         (hname (plist-get host :host))
         (port  (plist-get host :port))
-        (rpath (or remote-path "/")))
+        (rpath (or remote-path "~/")))
     (if (and port (/= port 22))
         (format "/ssh:%s@%s#%d:%s" user hname port rpath)
       (format "/ssh:%s@%s:%s" user hname rpath))))

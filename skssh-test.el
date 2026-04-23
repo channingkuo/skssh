@@ -5,6 +5,7 @@
 (require 'skssh-config)
 (require 'skssh-core)
 (require 'skssh-sftp)
+(require 'skssh-ui)
 
 ;;; Config tests
 
@@ -180,6 +181,34 @@
           (should (eq 'download
                       (skssh-sftp--transfer-direction left right))))
       (delete-window right))))
+
+;;; UI filter tests
+
+(ert-deftest skssh-test-ui-filter-matches-label ()
+  "Substring filter matches a host's label (case-insensitive)."
+  (let ((host '(:id "a" :label "Production Web" :host "1.2.3.4"
+                :user "u" :port 22 :groups ("prod"))))
+    (should (skssh-ui--host-matches-string-p host "prod"))
+    (should (skssh-ui--host-matches-string-p host "WEB"))))
+
+(ert-deftest skssh-test-ui-filter-matches-host ()
+  "Substring filter matches :host."
+  (let ((host '(:id "a" :label "Box" :host "dev.example.com"
+                :user "u" :port 22 :groups nil)))
+    (should (skssh-ui--host-matches-string-p host "example"))))
+
+(ert-deftest skssh-test-ui-filter-matches-group ()
+  "Substring filter matches any entry in :groups."
+  (let ((host '(:id "a" :label "Box" :host "h"
+                :user "u" :port 22 :groups ("staging" "eu"))))
+    (should (skssh-ui--host-matches-string-p host "stag"))
+    (should (skssh-ui--host-matches-string-p host "eu"))))
+
+(ert-deftest skssh-test-ui-filter-rejects-miss ()
+  "Substring filter returns nil when nothing matches."
+  (let ((host '(:id "a" :label "Box" :host "h"
+                :user "u" :port 22 :groups ("prod"))))
+    (should-not (skssh-ui--host-matches-string-p host "zzz"))))
 
 (provide 'skssh-test)
 ;;; skssh-test.el ends here

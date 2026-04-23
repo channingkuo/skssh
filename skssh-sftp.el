@@ -4,6 +4,7 @@
 ;;; Code:
 
 (require 'dired)
+(require 'transient)
 (require 'skssh-core)
 
 ;;; Path detection
@@ -60,10 +61,12 @@ SRC-PATH or DEST-DIR may be TRAMP paths."
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map dired-mode-map)
     (define-key map (kbd "C")   #'skssh-sftp-copy-to-other)
-    (define-key map (kbd "R")   #'skssh-sftp-move-to-other)
     (define-key map (kbd "TAB") #'skssh-sftp-switch-pane)
     (define-key map (kbd "g")   #'skssh-sftp-refresh)
+    (define-key map (kbd "h")   #'skssh-sftp-help)
     (define-key map (kbd "q")   #'skssh-sftp-quit)
+    (define-key map [remap dired-find-file]    #'skssh-sftp-find-file)
+    (define-key map [remap dired-up-directory] #'skssh-sftp-up-directory)
     map)
   "Keymap for `skssh-sftp-mode'.")
 
@@ -80,7 +83,8 @@ SRC-PATH or DEST-DIR may be TRAMP paths."
 Left pane = local home dir, right pane = remote home dir."
   (delete-other-windows)
   (let* ((local-buf  (dired-noselect "~"))
-         (remote-buf (dired-noselect (skssh--tramp-path host)))
+         (remote-buf (skssh--with-tramp-auth
+                       (dired-noselect (skssh--tramp-path host))))
          (lwin (selected-window))
          (rwin (split-window-right)))
     (set-window-buffer lwin local-buf)
@@ -119,19 +123,6 @@ Left pane = local home dir, right pane = remote home dir."
       (skssh-sftp--transfer f dest-dir))
     (skssh-sftp-refresh)))
 
-(defun skssh-sftp-move-to-other ()
-  "Move marked files (or file at point) to the opposite pane."
-  (interactive)
-  (let ((files    (dired-get-marked-files nil nil nil t))
-        (dest-dir (skssh-sftp--other-dir)))
-    (dolist (f files)
-      (skssh-sftp--transfer f dest-dir)
-      (condition-case err
-          (delete-file f)
-        (error (message "skssh-sftp: could not delete source %s: %s"
-                        f (error-message-string err)))))
-    (skssh-sftp-refresh)))
-
 (defun skssh-sftp-switch-pane ()
   "Switch focus to the opposite pane."
   (interactive)
@@ -139,6 +130,41 @@ Left pane = local home dir, right pane = remote home dir."
                    skssh-sftp--remote-window
                  skssh-sftp--local-window)))
     (select-window other)))
+
+(defun skssh-sftp--visit-dir (dir)
+  "Replace the current pane buffer with DIR, keeping `skssh-sftp-mode' active.
+DIR may be a local path or a TRAMP path."
+  (let ((host     skssh-sftp--host)
+        (lwin     skssh-sftp--local-window)
+        (rwin     skssh-sftp--remote-window)
+        (is-local (eq (selected-window) skssh-sftp--local-window)))
+    (set-buffer-modified-p nil)
+    (find-alternate-file dir)
+    (skssh-sftp-mode 1)
+    (setq skssh-sftp--local-window  lwin
+          skssh-sftp--remote-window rwin
+          skssh-sftp--host          host)
+    (when (and host (plist-get host :label))
+      (rename-buffer
+       (format (if is-local "*skssh-local:%s*" "*skssh-remote:%s*")
+               (plist-get host :label))
+       t))))
+
+(defun skssh-sftp-find-file ()
+  "Visit the file or directory at point.
+Directories replace the current pane in place, keeping `skssh-sftp-mode'
+active.  Regular files are opened as in ordinary dired."
+  (interactive)
+  (let ((target (dired-get-file-for-visit)))
+    (if (file-directory-p target)
+        (skssh-sftp--visit-dir (file-name-as-directory target))
+      (dired-find-file))))
+
+(defun skssh-sftp-up-directory ()
+  "Go up one directory in the current pane, keeping `skssh-sftp-mode' active."
+  (interactive)
+  (skssh-sftp--visit-dir
+   (file-name-directory (directory-file-name default-directory))))
 
 (defun skssh-sftp-refresh ()
   "Revert both local and remote dired buffers."
@@ -185,6 +211,27 @@ BEG and END delimit the changed region."
                           (dired-current-directory)))))
             (skssh-sftp--transfer path dest)
             (skssh-sftp-refresh)))))))
+
+;;; Help / key reference
+
+(transient-define-prefix skssh-sftp-help ()
+  "Show key bindings for the dual-pane SFTP session."
+  [:description
+   (lambda ()
+     (if (and skssh-sftp--host (plist-get skssh-sftp--host :label))
+         (format "skssh-sftp keys — %s"
+                 (plist-get skssh-sftp--host :label))
+       "skssh-sftp keys"))
+   ["Transfer"
+    ("C" "Copy marked to other pane" skssh-sftp-copy-to-other)]
+   ["Navigate"
+    ("TAB" "Switch pane"       skssh-sftp-switch-pane)
+    ("RET" "Enter directory"   skssh-sftp-find-file)
+    ("^"   "Up one directory"  skssh-sftp-up-directory)
+    ("g"   "Refresh panes"     skssh-sftp-refresh)]
+   ["Session"
+    ("h" "Show this help" skssh-sftp-help)
+    ("q" "Quit SFTP"      skssh-sftp-quit)]])
 
 (provide 'skssh-sftp)
 ;;; skssh-sftp.el ends here

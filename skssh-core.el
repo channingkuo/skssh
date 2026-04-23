@@ -9,6 +9,17 @@
 (defvar skssh--active-sessions (make-hash-table :test 'equal)
   "Active TRAMP sessions. Key = host :id string, value = buffer.")
 
+(defmacro skssh--with-tramp-auth (&rest body)
+  "Run BODY with TRAMP auth-source lookup forced on.
+TRAMP only consults auth-source when
+`tramp-cache-read-persistent-data' is non-nil (see tramp.el
+`tramp-process-actions' and `tramp-read-passwd').  Scope the
+override to skssh's own connection calls so the user's global
+setting is preserved."
+  (declare (indent 0) (debug t))
+  `(let ((tramp-cache-read-persistent-data t))
+     ,@body))
+
 (defun skssh--tramp-path (host &optional remote-path)
   "Build TRAMP /ssh: path string for HOST plist.
 REMOTE-PATH defaults to \"/\"."
@@ -35,19 +46,21 @@ REMOTE-PATH defaults to \"/\"."
 
 (defun skssh--connect-shell (host)
   "Open a TRAMP shell buffer for HOST plist. Returns the buffer."
-  (let* ((tramp-path (skssh--tramp-path host))
-         (default-directory tramp-path)
-         (buf (shell (format "*skssh-shell:%s*" (plist-get host :label)))))
-    (skssh--session-register (plist-get host :id) buf)
-    buf))
+  (skssh--with-tramp-auth
+    (let* ((tramp-path (skssh--tramp-path host))
+           (default-directory tramp-path)
+           (buf (shell (format "*skssh-shell:%s*" (plist-get host :label)))))
+      (skssh--session-register (plist-get host :id) buf)
+      buf)))
 
 (defun skssh--connect-dired (host)
   "Open a TRAMP dired buffer for HOST plist. Returns the buffer."
-  (let* ((tramp-path (skssh--tramp-path host))
-         (buf (dired-noselect tramp-path)))
-    (skssh--session-register (plist-get host :id) buf)
-    (switch-to-buffer buf)
-    buf))
+  (skssh--with-tramp-auth
+    (let* ((tramp-path (skssh--tramp-path host))
+           (buf (dired-noselect tramp-path)))
+      (skssh--session-register (plist-get host :id) buf)
+      (switch-to-buffer buf)
+      buf)))
 
 (provide 'skssh-core)
 ;;; skssh-core.el ends here

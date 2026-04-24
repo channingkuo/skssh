@@ -67,17 +67,17 @@ Clone the repository and add to your load-path:
 
 Shell buffers opened by skssh activate ~skssh-shell-mode~.
 
-| Key     | Action                              |
-|---------+-------------------------------------|
-| ~C-c q~ | Kill shell buffer, return to host list |
+| Key       | Action                                 |
+|-----------+----------------------------------------|
+| ~C-c C-q~ | Kill shell buffer, return to host list |
 
 ** Dired Buffer Keys
 
 Dired buffers opened by skssh activate ~skssh-dired-mode~.
 
-| Key       | Action                                |
-|-----------+---------------------------------------|
-| ~C-c q~ / ~q~ | Kill dired buffer, return to host list |
+| Key           | Action                                 |
+|---------------+----------------------------------------|
+| ~C-c C-q~ / ~q~ | Kill dired buffer, return to host list |
 
 ** SFTP Dual-Pane Keys
 

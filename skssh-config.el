@@ -145,4 +145,8 @@ Existing hosts with the same label are skipped."
              (- (length imported) (length new-hosts)))))
 
 (provide 'skssh-config)
+
+;; Local Variables:
+;; package-lint-main-file: "skssh.el"
+;; End:
 ;;; skssh-config.el ends here

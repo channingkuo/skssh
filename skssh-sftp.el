@@ -383,4 +383,8 @@ drag-drop-style transfer instead."
     ("q" "Quit SFTP"      skssh-sftp-quit)]])
 
 (provide 'skssh-sftp)
+
+;; Local Variables:
+;; package-lint-main-file: "skssh.el"
+;; End:
 ;;; skssh-sftp.el ends here

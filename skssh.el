@@ -1,8 +1,8 @@
-;;; skssh.el --- SSH connection manager for Emacs  -*- lexical-binding: t; -*-
+;;; skssh.el --- SSH connection manager  -*- lexical-binding: t; -*-
 
 ;; Author: ChanningKuo <channingkuo@icloud.com>
 ;; Maintainer: ChanningKuo <channingkuo@icloud.com>
-;; Version: 0.1.0
+;; Version: 0.1.1
 ;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: ssh tramp tools
 ;; URL: https://github.com/ChanningKuo/skssh

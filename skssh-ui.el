@@ -265,4 +265,8 @@ marks the string as (default) when nothing on HOST overrides."
     ("q" "Quit"       quit-window)]])
 
 (provide 'skssh-ui)
+
+;; Local Variables:
+;; package-lint-main-file: "skssh.el"
+;; End:
 ;;; skssh-ui.el ends here

@@ -72,7 +72,7 @@ the login user's home directory on the remote host."
 
 (defvar skssh-shell-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c q") #'skssh-shell-quit)
+    (define-key map (kbd "C-c C-q") #'skssh-shell-quit)
     map)
   "Keymap for `skssh-shell-mode'.")
 
@@ -124,8 +124,8 @@ invocation silently skips those dotfiles."
 
 (defvar skssh-dired-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c q") #'skssh-dired-quit)
-    (define-key map (kbd "q")     #'skssh-dired-quit)
+    (define-key map (kbd "C-c C-q") #'skssh-dired-quit)
+    (define-key map (kbd "q")       #'skssh-dired-quit)
     map)
   "Keymap for `skssh-dired-mode'.
 `q' is rebound from the default `quit-window' (which leaves the buffer
@@ -166,4 +166,8 @@ Runs `quit-window' with KILL=t so both the window and the buffer go."
       buf)))
 
 (provide 'skssh-core)
+
+;; Local Variables:
+;; package-lint-main-file: "skssh.el"
+;; End:
 ;;; skssh-core.el ends here

@@ -1,10 +1,34 @@
-;;; skssh.el --- SSH connection manager  -*- lexical-binding: t; -*-
-;; Author: ChanningKuo
+;;; skssh.el --- SSH connection manager for Emacs  -*- lexical-binding: t; -*-
+
+;; Author: ChanningKuo <channingkuo@icloud.com>
+;; Maintainer: ChanningKuo <channingkuo@icloud.com>
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "30.0"))
+;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: ssh tramp tools
+;; URL: https://github.com/ChanningKuo/skssh
+
 ;;; Commentary:
-;; Manage SSH connections from Emacs.
+
+;; skssh is an SSH connection manager for Emacs.  It provides a
+;; tabulated host list where you can add, edit, delete, and connect to
+;; SSH hosts without leaving Emacs.
+;;
+;; Connections use TRAMP under the hood, so you get full Emacs
+;; integration: Dired, shell buffers, and file editing all work over
+;; SSH out of the box.
+;;
+;; A built-in dual-pane SFTP interface lets you transfer files between
+;; local and remote directories, with drag-and-drop support in
+;; terminal Emacs.
+;;
+;; Host configuration is stored in `user-emacs-directory'/skssh/hosts.el
+;; and never touches ~/.ssh/config.  You can import existing hosts
+;; from ~/.ssh/config as a one-time operation.
+;;
+;; Main entry points:
+;;   M-x skssh          — open host list
+;;   M-x skssh-add-host — add a new host interactively
+;;   M-x skssh-sftp     — open SFTP dual-pane for a host
 ;;; Code:
 
 (require 'skssh-config)

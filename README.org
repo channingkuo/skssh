@@ -3,10 +3,23 @@
 
 * Overview
 
-skssh lets you manage SSH connections from Emacs: browse hosts, connect
-via TRAMP, and transfer files with a dual-pane SFTP interface.
+skssh is an SSH connection manager for Emacs.  It provides a
+tabulated host list where you can add, edit, delete, and connect to
+SSH hosts without leaving Emacs.
 
-Requires Emacs 30.0+.
+Connections use TRAMP under the hood, giving you full Emacs
+integration: shell buffers, Dired, and file editing all work over SSH
+out of the box.
+
+A built-in dual-pane SFTP interface lets you transfer files between
+local and remote directories.  Drag-and-drop and paste-path transfer
+are supported in terminal Emacs.
+
+Host configuration is stored in =~/.emacs.d/skssh/hosts.el= and
+never touches =~/.ssh/config=.  You can import existing hosts from
+=~/.ssh/config= as a one-time operation.
+
+Requires Emacs 29.1+.
 
 * Installation
 
@@ -27,54 +40,100 @@ Clone the repository and add to your load-path:
 
 * Usage
 
-| Command              | Description                        |
-|----------------------+------------------------------------|
-| ~M-x skssh~          | Open host list                     |
-| ~M-x skssh-add-host~ | Add a new SSH host                 |
-| ~M-x skssh-import~   | Import hosts from ~/.ssh/config    |
-| ~M-x skssh-sftp~     | Open dual-pane SFTP for a host     |
+| Command                          | Description                         |
+|----------------------------------+-------------------------------------|
+| ~M-x skssh~                      | Open host list                      |
+| ~M-x skssh-add-host~             | Add a new SSH host interactively    |
+| ~M-x skssh-import-from-ssh-config~ | Import hosts from ~/.ssh/config   |
+| ~M-x skssh-sftp~                 | Open dual-pane SFTP for a host      |
 
 ** Host List Keys
 
-| Key | Action                    |
-|-----+---------------------------|
-| ~RET~ / ~?~ | Open action menu  |
-| ~s~   | Connect: Shell            |
-| ~d~   | Connect: Dired            |
-| ~f~   | Open SFTP dual-pane       |
-| ~e~   | Edit host                 |
-| ~D~   | Delete host               |
-| ~a~   | Add host                  |
-| ~i~   | Import from ~/.ssh/config |
-| ~G~   | Filter by group           |
-| ~q~   | Quit                      |
+| Key       | Action                            |
+|-----------+-----------------------------------|
+| ~RET~ / ~?~ | Open action menu (transient)    |
+| ~s~       | Connect: Shell                    |
+| ~d~       | Connect: Dired                    |
+| ~f~       | Open SFTP dual-pane               |
+| ~e~       | Edit host                         |
+| ~D~       | Delete host                       |
+| ~a~       | Add host                          |
+| ~i~       | Import from ~/.ssh/config         |
+| ~/~       | Filter by label / host / group    |
+| ~G~       | Filter by group (exact match)     |
+| ~q~       | Quit                              |
+
+** Shell Buffer Keys
+
+Shell buffers opened by skssh activate ~skssh-shell-mode~.
+
+| Key     | Action                              |
+|---------+-------------------------------------|
+| ~C-c q~ | Kill shell buffer, return to host list |
+
+** Dired Buffer Keys
+
+Dired buffers opened by skssh activate ~skssh-dired-mode~.
+
+| Key       | Action                                |
+|-----------+---------------------------------------|
+| ~C-c q~ / ~q~ | Kill dired buffer, return to host list |
 
 ** SFTP Dual-Pane Keys
 
 | Key   | Action                             |
 |-------+------------------------------------|
 | ~C~   | Copy marked files to opposite pane |
-| ~R~   | Move marked files to opposite pane |
 | ~TAB~ | Switch pane                        |
+| ~RET~ | Enter directory                    |
+| ~^~   | Go up one directory                |
 | ~g~   | Refresh both panes                 |
+| ~H~   | Toggle links/user/group columns    |
+| ~h~   | Show key reference (transient)     |
 | ~q~   | Quit SFTP, return to host list     |
 
-** Drag-and-Drop File Transfer
+** Drag-and-Drop / Paste File Transfer
 
-In terminal Emacs, drag a file from your desktop onto the terminal.
-The terminal pastes the file path. skssh detects the path and uploads
-or downloads based on which pane has focus.
+In terminal Emacs, drag a file from your desktop onto the terminal —
+the terminal delivers it as a bracketed-paste event.  You can also
+copy a file path and use ~C-y~.  skssh intercepts the paste and
+transfers the file to the opposite pane instead of trying to insert
+text into the read-only dired buffer.
 
-1. Focus the target pane (~TAB~ to switch)
-2. Drag file from desktop → terminal
-3. Transfer begins automatically
+Transfer direction is determined by which pane has focus:
+
+- Focus remote pane (~TAB~ to switch) → file is *uploaded* local → remote
+- Focus local pane → file is *downloaded* remote → local
 
 Supports Unix/macOS paths (=/path/to/file=, =~/file=) and Windows
 paths (=C:\file=, =C:/file=).
 
+* Shell Configuration
+
+By default skssh opens a login + interactive shell so that
+=.bash_profile=, =.bashrc=, =.zprofile=, and =.zshrc= are all
+sourced.
+
+** Global defaults
+
+#+begin_src emacs-lisp
+;; Remote shell program (default: /bin/bash)
+(setq skssh-shell-file-name "/bin/zsh")
+
+;; Arguments passed to the shell
+;; -l = login shell (sources .bash_profile / .zprofile)
+;; -i = interactive shell (sources .bashrc / .zshrc)
+(setq skssh-shell-args '("-l" "-i"))
+#+end_src
+
+** Per-host overrides
+
+Set =:shell= and =:shell-args= when editing a host (~e~ in the host
+list) to override the global defaults for that host only.
+
 * Password Authentication
 
-skssh does not store passwords. When no ~:identity~ key is set,
+skssh does not store passwords.  When no ~:identity~ key is set,
 TRAMP uses ~auth-source~ to look up credentials:
 
 1. =~/.authinfo.gpg= (recommended — GPG encrypted)
@@ -83,7 +142,9 @@ TRAMP uses ~auth-source~ to look up credentials:
 
 * Configuration
 
-Hosts are stored in =~/.emacs.d/skssh/hosts.el= as an Emacs Lisp plist list.
+Hosts are stored in =~/.emacs.d/skssh/hosts.el= as a list of Emacs
+Lisp plists.  The file is managed entirely by skssh; do not edit it
+by hand.
 
 #+begin_src emacs-lisp
 ((:id "abc-123"
@@ -92,9 +153,20 @@ Hosts are stored in =~/.emacs.d/skssh/hosts.el= as an Emacs Lisp plist list.
   :user "deploy"
   :port 22
   :identity "~/.ssh/id_ed25519"
-  :groups ("prod")
+  :groups ("prod" "web")
+  :shell nil          ; nil = use skssh-shell-file-name
+  :shell-args nil     ; nil = use skssh-shell-args
   :notes ""))
 #+end_src
+
+** Customization
+
+| Variable                       | Default      | Description                              |
+|--------------------------------+--------------+------------------------------------------|
+| ~skssh-config-file~            | =~/.emacs.d/skssh/hosts.el= | Path to host storage file   |
+| ~skssh-shell-file-name~        | ="/bin/bash"=  | Default remote shell program             |
+| ~skssh-shell-args~             | ='("-l" "-i")= | Default shell arguments                  |
+| ~skssh-sftp-hide-detail-columns~ | ~t~          | Hide links/user/group columns in SFTP panes |
 
 * v0.2 Roadmap
 

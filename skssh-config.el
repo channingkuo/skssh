@@ -1,4 +1,12 @@
 ;;; skssh-config.el --- SSH host config storage  -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
 ;;; Commentary:
 ;; Reads and writes skssh host list (hosts.el).
 ;; Also parses ~/.ssh/config for one-time import.
@@ -56,7 +64,7 @@ Returns list of host plists, or nil if file missing or corrupt."
 
 (defun skssh--add-host (host hosts)
   "Add HOST plist to HOSTS list.
-Assigns a new :id if HOST lacks one. Returns new list."
+Assign a new :id if HOST lacks one.  Return new list."
   (let ((h (if (plist-get host :id)
                host
              (append (list :id (skssh--generate-id)) host))))
@@ -70,7 +78,7 @@ Returns new list."
           hosts))
 
 (defun skssh--delete-host (id hosts)
-  "Remove host with :id = ID from HOSTS. Returns new list."
+  "Remove host with :id = ID from HOSTS.  Return new list."
   (cl-remove id hosts :test #'equal
              :key (lambda (h) (plist-get h :id))))
 

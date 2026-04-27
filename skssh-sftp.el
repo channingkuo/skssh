@@ -1,4 +1,12 @@
 ;;; skssh-sftp.el --- Dual-pane SFTP file manager  -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
 ;;; Commentary:
 ;; Split-window dired-based SFTP with drag-drop path detection.
 ;;; Code:
@@ -53,8 +61,8 @@ SRC-PATH or DEST-DIR may be TRAMP paths."
 
 ;;; Dual-pane layout
 
-(defvar-local skssh-sftp--local-window  nil "The local dired window in skssh-sftp session.")
-(defvar-local skssh-sftp--remote-window nil "The remote TRAMP dired window in skssh-sftp session.")
+(defvar-local skssh-sftp--local-window  nil "The local Dired window in skssh-sftp session.")
+(defvar-local skssh-sftp--remote-window nil "The remote TRAMP Dired window in skssh-sftp session.")
 (defvar-local skssh-sftp--host nil "The connected host plist for this skssh-sftp buffer.")
 
 (defvar skssh-sftp-mode-map
@@ -80,7 +88,7 @@ SRC-PATH or DEST-DIR may be TRAMP paths."
   "Keymap for `skssh-sftp-mode'.")
 
 (defcustom skssh-sftp-hide-detail-columns t
-  "If non-nil, hide links/user/group columns in SFTP dired panes.
+  "If non-nil, hide links/user/group columns in SFTP Dired panes.
 This controls the default state when a pane is first opened.
 Toggle interactively with \\[skssh-sftp-toggle-detail-columns]."
   :type 'boolean
@@ -90,7 +98,7 @@ Toggle interactively with \\[skssh-sftp-toggle-detail-columns]."
   "Buffer-local flag: non-nil when detail columns are currently hidden.")
 
 (define-minor-mode skssh-sftp-mode
-  "Minor mode active in skssh SFTP dual-pane dired buffers."
+  "Minor mode active in skssh SFTP dual-pane Dired buffers."
   :lighter " skssh-sftp"
   :keymap skssh-sftp-mode-map
   (if skssh-sftp-mode
@@ -126,17 +134,17 @@ Toggle interactively with \\[skssh-sftp-toggle-detail-columns]."
        (+ (not (any " \t"))) (+ (any " \t")))
       ;; Group 2 = the size token (e.g. "1568" or "1.5K").
       (group (+ (not (any " \t")))))
-  "Regexp matching a dired -l line.
+  "Regexp matching a Dired -l line.
 Group 1 covers marker/links/user/group plus the separating
 whitespace; it is replaced by a computed `display' string so that
 the size column becomes right-aligned.  Group 2 is the size token,
 used only to measure its width.")
 
 (defun skssh-sftp--hide-detail-columns ()
-  "Hide links/user/group columns in the current dired buffer.
+  "Hide links/user/group columns in the current Dired buffer.
 Sizes are realigned so the size column is right-aligned, which
 keeps the date and filename columns lined up across rows.  The
-underlying buffer text is preserved, so dired operations keep
+underlying buffer text is preserved, so Dired operations keep
 working unchanged."
   (remove-overlays (point-min) (point-max) 'skssh-sftp-hidden t)
   (let ((rows nil)
@@ -260,7 +268,7 @@ DIR may be a local path or a TRAMP path."
 (defun skssh-sftp-find-file ()
   "Visit the file or directory at point.
 Directories replace the current pane in place, keeping `skssh-sftp-mode'
-active.  Regular files are opened as in ordinary dired."
+active.  Regular files are opened as in ordinary Dired."
   (interactive)
   (let ((target (dired-get-file-for-visit)))
     (if (file-directory-p target)
@@ -274,7 +282,7 @@ active.  Regular files are opened as in ordinary dired."
    (file-name-directory (directory-file-name default-directory))))
 
 (defun skssh-sftp-refresh ()
-  "Revert both local and remote dired buffers."
+  "Revert both local and remote Dired buffers."
   (interactive)
   (when (window-live-p skssh-sftp--local-window)
     (with-current-buffer (window-buffer skssh-sftp--local-window)
@@ -350,8 +358,8 @@ trying to paste text into a dired buffer."
 
 (defun skssh-sftp-yank ()
   "Yank replacement for SFTP panes.
-If the top of the kill-ring is an existing file path, transfer it to
-the opposite pane.  Plain `yank' would fail here anyway because dired
+If the top of the `kill-ring' is an existing file path, transfer it to
+the opposite pane.  Plain `yank' would fail here anyway because Dired
 buffers are read-only; this turns the failing keystroke into a useful
 drag-drop-style transfer instead."
   (interactive)

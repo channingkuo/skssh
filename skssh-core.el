@@ -1,4 +1,12 @@
 ;;; skssh-core.el --- TRAMP connection management  -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
 ;;; Commentary:
 ;; Builds TRAMP paths and tracks active SSH sessions.
 ;;; Code:
@@ -10,7 +18,7 @@
 (defcustom skssh-shell-file-name "/bin/bash"
   "Remote shell program used by `skssh--connect-shell'.
 Set to the absolute path of an interactive shell on the remote host
-(for example \"/bin/bash\" or \"/bin/zsh\").  This overrides TRAMP's
+\(for example \"/bin/bash\" or \"/bin/zsh\").  This overrides TRAMP's
 default of `/bin/sh', which would otherwise skip the user's
 `.bashrc' / `.zshrc' entirely.
 
@@ -32,7 +40,7 @@ host plist."
   :group 'skssh)
 
 (defvar skssh--active-sessions (make-hash-table :test 'equal)
-  "Active TRAMP sessions. Key = host :id string, value = buffer.")
+  "Active TRAMP sessions.  Key = host :id string, value = buffer.")
 
 (defmacro skssh--with-tramp-auth (&rest body)
   "Run BODY with TRAMP auth-source lookup forced on.
@@ -96,7 +104,7 @@ Provides `C-c q' to kill the shell and return to the host list."
     (switch-to-buffer "*skssh*")))
 
 (defun skssh--connect-shell (host)
-  "Open a TRAMP shell buffer for HOST plist. Returns the buffer.
+  "Open a TRAMP shell buffer for HOST plist.  Return the buffer.
 
 Starts the remote shell specified by `:shell' on HOST (falling back
 to `skssh-shell-file-name') as a login + interactive shell so that
@@ -129,17 +137,17 @@ invocation silently skips those dotfiles."
     map)
   "Keymap for `skssh-dired-mode'.
 `q' is rebound from the default `quit-window' (which leaves the buffer
-alive) to `skssh-dired-quit', so the dired buffer and its TRAMP session
+alive) to `skssh-dired-quit', so the Dired buffer and its TRAMP session
 are fully cleaned up on exit.")
 
 (define-minor-mode skssh-dired-mode
-  "Minor mode active in skssh-managed dired buffers.
-Provides `C-c q' to kill the dired buffer and return to the host list."
+  "Minor mode active in skssh-managed Dired buffers.
+Provides `C-c q' to kill the Dired buffer and return to the host list."
   :lighter " skssh-dired"
   :keymap skssh-dired-mode-map)
 
 (defun skssh-dired-quit ()
-  "Kill the current skssh dired buffer and return to the host list.
+  "Kill the current skssh Dired buffer and return to the host list.
 Runs `quit-window' with KILL=t so both the window and the buffer go."
   (interactive)
   (let ((buf (current-buffer)))
@@ -151,7 +159,7 @@ Runs `quit-window' with KILL=t so both the window and the buffer go."
     (switch-to-buffer "*skssh*")))
 
 (defun skssh--connect-dired (host)
-  "Open a TRAMP dired buffer for HOST plist. Returns the buffer."
+  "Open a TRAMP Dired buffer for HOST plist.  Return the buffer."
   (skssh--with-tramp-auth
     (let* ((tramp-path (skssh--tramp-path host))
            (buf (dired-noselect tramp-path)))

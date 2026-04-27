@@ -1,4 +1,12 @@
 ;;; skssh-ui.el --- Host list UI and Transient menus  -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
 ;;; Commentary:
 ;; tabulated-list-mode host browser and transient action menu.
 ;;; Code:
@@ -60,7 +68,7 @@
   (if (skssh--session-active-p (plist-get host :id)) "●" "○"))
 
 (defun skssh-ui--host-matches-string-p (host needle)
-  "Return non-nil if HOST plist contains NEEDLE (case-insensitive).
+  "Return non-nil if HOST plist contain NEEDLE (case-insensitive).
 Searches :label, :host, and any entry in :groups."
   (let ((case-fold-search t)
         (n (downcase needle)))
@@ -161,7 +169,7 @@ Empty input clears the filter."
   (skssh--connect-shell (skssh-ui--current-host)))
 
 (defun skssh-ui-connect-dired ()
-  "Open dired for host at point."
+  "Open Dired for host at point."
   (interactive)
   (skssh--connect-dired (skssh-ui--current-host)))
 
@@ -183,7 +191,7 @@ Empty input clears the filter."
         (message "skssh: deleted \"%s\"" label)))))
 
 (defun skssh-ui-edit-host ()
-  "Edit host at point via minibuffer prompts."
+  "Edit host at point via minibuffer prompt."
   (interactive)
   (let* ((host (skssh-ui--current-host))
          (label    (read-string "Label: "    (plist-get host :label)))
